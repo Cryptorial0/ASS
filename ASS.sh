@@ -23,6 +23,13 @@ set -euo pipefail
 LOG_FILE="$HOME/ass-install.log"
 LOCK_FILE="$HOME/.ass_done"
 
+SKIP_UPDATE=0
+for arg in "$@"; do
+    if [ "$arg" == "--skip-update" ]; then
+        SKIP_UPDATE=1
+    fi
+done
+
 # Initialize log file with a starting timestamp banner
 echo "================================================================" > "$LOG_FILE"
 echo " Arch Setup Script (ASS) - Installation Log                      " >> "$LOG_FILE"
@@ -204,8 +211,13 @@ print_info "Synchronizing package databases..."
 sudo pacman -Sy 2>&1 | tee -a "$LOG_FILE"
 
 print_step "Installing Base System Tools"
-print_info "Installing git, base-devel, curl, wget, unzip, tar..."
-sudo pacman -Syu --needed git base-devel curl wget unzip tar 2>&1 | tee -a "$LOG_FILE"
+if [ "$SKIP_UPDATE" -eq 1 ]; then
+    print_info "Skipping system update. Installing git, base-devel, curl, wget, unzip, tar..."
+    sudo pacman -S --needed git base-devel curl wget unzip tar 2>&1 | tee -a "$LOG_FILE"
+else
+    print_info "Updating system and installing git, base-devel, curl, wget, unzip, tar..."
+    sudo pacman -Syu --needed git base-devel curl wget unzip tar 2>&1 | tee -a "$LOG_FILE"
+fi
 
 if ! command -v yay &> /dev/null; then
     print_info "Installing yay AUR helper..."
@@ -267,25 +279,33 @@ esac
 # -----------------------------
 print_step "Browser Selection"
 echo -e "${BWHITE}Select web browser to install:${NC}"
-echo -e "  ${BCYAN}1)${NC} Vivaldi ${BGREEN}[Recommended]${NC}"
-echo -e "  ${BCYAN}2)${NC} Firefox ${BYELLOW}[Furry/Gay]${NC}"
-echo -e "  ${BCYAN}3)${NC} Google Chrome ${BRED}[حلتيتة]${NC}"
-echo -e "  ${BCYAN}4)${NC} Opera GX ${BMAGENTA}[Extremely Gay]${NC}"
-echo -e "  ${BCYAN}5)${NC} Microsoft Edge ${BBLUE}[Virgin]${NC}"
-echo -e "  ${BCYAN}6)${NC} Brave ${BORANGE}[For Pussies]${NC}"
-echo -e "  ${BCYAN}7)${NC} Skip"
+echo -e "  ${BCYAN}1)${NC} Brave ${BGREEN}[Recommended]${NC}"
+echo -e "  ${BCYAN}2)${NC} Zen Browser"
+echo -e "  ${BCYAN}3)${NC} Firefox"
+echo -e "  ${BCYAN}4)${NC} Thorium (Performance Optimized)"
+echo -e "  ${BCYAN}5)${NC} LibreWolf (Privacy Focused)"
+echo -e "  ${BCYAN}6)${NC} Floorp"
+echo -e "  ${BCYAN}7)${NC} Vivaldi"
+echo -e "  ${BCYAN}8)${NC} Google Chrome"
+echo -e "  ${BCYAN}9)${NC} Opera GX"
+echo -e "  ${BCYAN}10)${NC} Microsoft Edge"
+echo -e "  ${BCYAN}11)${NC} Skip"
 echo ""
-read -p "  Your Choice [1-7]: " browser_choice
+read -p "  Your Choice [1-11]: " browser_choice
 
 browser_pkg=()
 
 case "$browser_choice" in
-    1) browser_pkg=(vivaldi) ;;
-    2) browser_pkg=(firefox) ;;
-    3) browser_pkg=(google-chrome) ;;
-    4) browser_pkg=(opera-gx) ;;
-    5) browser_pkg=(microsoft-edge-stable-bin) ;;
-    6) browser_pkg=(brave-bin) ;;
+    1) browser_pkg=(brave-bin) ;;
+    2) browser_pkg=(zen-browser-bin) ;;
+    3) browser_pkg=(firefox) ;;
+    4) browser_pkg=(thorium-browser-bin) ;;
+    5) browser_pkg=(librewolf) ;;
+    6) browser_pkg=(floorp-bin) ;;
+    7) browser_pkg=(vivaldi) ;;
+    8) browser_pkg=(google-chrome) ;;
+    9) browser_pkg=(opera-gx) ;;
+    10) browser_pkg=(microsoft-edge-stable-bin) ;;
     *) print_info "Skipping browser installation." ;;
 esac
 
@@ -507,7 +527,7 @@ echo -e "${BCYAN}├────────────────────
 yay_install_list=()
 for pkg in "${browser_pkg[@]}" "${emu_pkgs[@]}" "${main_pkgs[@]}"; do
     case "$pkg" in
-        google-chrome|microsoft-edge-stable-bin|brave-bin|eden-git|protonplus|mangojuice|stremio|losslesscut-bin|spotify|hydra-launcher-bin|portproton|parabolic|iriunwebcam-bin|localsend-bin|decaf-emu-git|r2modman-bin|zapzap|rootapp-bin|vice-clipper|pascube|ventoy-bin|opera-gx|duckstation-bin)
+        zen-browser-bin|thorium-browser-bin|librewolf|floorp-bin|google-chrome|microsoft-edge-stable-bin|brave-bin|eden-git|protonplus|mangojuice|stremio|losslesscut-bin|spotify|hydra-launcher-bin|portproton|parabolic|iriunwebcam-bin|localsend-bin|decaf-emu-git|r2modman-bin|zapzap|rootapp-bin|vice-clipper|pascube|ventoy-bin|opera-gx|duckstation-bin)
             yay_install_list+=("$pkg")
             ;;
     esac
