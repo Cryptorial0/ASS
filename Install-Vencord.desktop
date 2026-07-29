@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Install & Update Vencord
+Comment=Downloads and installs the latest Vencord script from GitHub
+Exec=bash -c 'curl -sSL https://raw.githubusercontent.com/Cryptorial0/ASS/master/vencord-updater | bash; echo ""; read -p "Press Enter to exit..."'
+Icon=system-software-update
+Terminal=true
+Categories=Utility;Settings;

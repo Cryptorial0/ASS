@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+
+# Colors for terminal output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+cleanup_exit() {
+    echo ""
+    read -p "Press Enter to exit..." unused
+    exit $1
+}
+
+echo -e "${CYAN}=== Vencord Installer & Updater ===${NC}"
+
+# Default raw URL on GitHub
+GITHUB_BASE_URL="https://raw.githubusercontent.com/Cryptorial0/ASS/master"
+FETCH_URL="${GITHUB_BASE_URL}/vencord"
+
+# Non-interactive / standard execution check
+if [[ -t 0 ]]; then
+    echo -e "Fetching Vencord script from: ${CYAN}${FETCH_URL}${NC}\n"
+fi
+
+TEMP_FILE=$(mktemp /tmp/vencord_download.XXXXXX)
+
+# Download vencord script from GitHub
+HTTP_CODE=$(curl -sSL -w "%{http_code}" -o "$TEMP_FILE" "$FETCH_URL")
+
+if [[ "$HTTP_CODE" != "200" || ! -s "$TEMP_FILE" ]]; then
+    # Fallback to 'main' branch if 'master' 404s
+    FALLBACK_URL="${GITHUB_BASE_URL/\/master\//\/main\/}/vencord"
+    HTTP_CODE=$(curl -sSL -w "%{http_code}" -o "$TEMP_FILE" "$FALLBACK_URL")
+fi
+
+if [[ "$HTTP_CODE" != "200" || ! -s "$TEMP_FILE" ]]; then
+    echo -e "${RED}[ERROR] Failed to fetch Vencord script from GitHub (HTTP ${HTTP_CODE}).${NC}"
+    echo -e "${YELLOW}Please verify that 'vencord' is pushed to GitHub at:${NC}"
+    echo -e " ${CYAN}${FETCH_URL}${NC}"
+    rm -f "$TEMP_FILE"
+    cleanup_exit 1
+fi
+
+echo -e "${GREEN}✔ Successfully downloaded latest Vencord script!${NC}"
+
+# Detect existing installation location
+SCRIPT_NAME="vencord"
+INSTALLED_PATH=""
+
+SYSTEM_WHICH=$(command -v "$SCRIPT_NAME" 2>/dev/null)
+
+if [[ -n "$SYSTEM_WHICH" ]]; then
+    INSTALLED_PATH=$(realpath "$SYSTEM_WHICH" 2>/dev/null || echo "$SYSTEM_WHICH")
+fi
+
+if [[ -z "$INSTALLED_PATH" ]]; then
+    POSSIBLE_PATHS=(
+        "$HOME/bin/vencord"
+        "$HOME/.local/bin/vencord"
+        "/usr/local/bin/vencord"
+        "/usr/bin/vencord"
+    )
+    
+    for p in "${POSSIBLE_PATHS[@]}"; do
+        if [[ -f "$p" ]]; then
+            INSTALLED_PATH="$p"
+            break
+        fi
+    done
+fi
+
+# If not installed anywhere yet, set up installation target directory
+IS_NEW_INSTALL=false
+if [[ -z "$INSTALLED_PATH" ]]; then
+    IS_NEW_INSTALL=true
+    if [[ -d "$HOME/bin" || -w "$HOME" ]]; then
+        INSTALLED_PATH="$HOME/bin/${SCRIPT_NAME}"
+    else
+        INSTALLED_PATH="/usr/local/bin/${SCRIPT_NAME}"
+    fi
+    echo -e "${CYAN}[!] First-time setup detected. Target: ${INSTALLED_PATH}${NC}"
+else
+    echo -e "Found existing installation at: ${CYAN}${INSTALLED_PATH}${NC}"
+fi
+
+# Backup existing script if present
+if [[ -f "$INSTALLED_PATH" ]]; then
+    BACKUP_PATH="${INSTALLED_PATH}.bak"
+    echo -e "Creating backup of current script to ${YELLOW}${BACKUP_PATH}${NC}..."
+    cp -f "$INSTALLED_PATH" "$BACKUP_PATH"
+fi
+
+DEST_DIR="$(dirname "$INSTALLED_PATH")"
+if [[ ! -d "$DEST_DIR" ]]; then
+    mkdir -p "$DEST_DIR" 2>/dev/null || sudo mkdir -p "$DEST_DIR"
+fi
+
+echo -e "Installing script to ${CYAN}${INSTALLED_PATH}${NC}..."
+
+if [[ -w "$DEST_DIR" || ( -f "$INSTALLED_PATH" && -w "$INSTALLED_PATH" ) ]]; then
+    cp -f "$TEMP_FILE" "$INSTALLED_PATH"
+    chmod +x "$INSTALLED_PATH"
+else
+    echo -e "${YELLOW}[!] Permission required to write to ${INSTALLED_PATH}${NC}"
+    sudo cp -f "$TEMP_FILE" "$INSTALLED_PATH"
+    sudo chmod +x "$INSTALLED_PATH"
+fi
+
+rm -f "$TEMP_FILE"
+
+# Install updater tool into PATH for future use
+UPDATER_DEST="${DEST_DIR}/vencord-updater"
+THIS_SCRIPT=$(realpath "$0" 2>/dev/null || echo "$0")
+
+if [[ -f "$THIS_SCRIPT" && "$THIS_SCRIPT" != "$UPDATER_DEST" ]]; then
+    echo -e "Installing updater command to ${CYAN}${UPDATER_DEST}${NC}..."
+    if [[ -w "$DEST_DIR" ]]; then
+        cp -f "$THIS_SCRIPT" "$UPDATER_DEST"
+        chmod +x "$UPDATER_DEST"
+    else
+        sudo cp -f "$THIS_SCRIPT" "$UPDATER_DEST"
+        sudo chmod +x "$UPDATER_DEST"
+    fi
+fi
+
+# Ensure user PATH includes ~/bin or ~/.local/bin if installed in home dir
+if [[ "$DEST_DIR" == "$HOME/bin" || "$DEST_DIR" == "$HOME/.local/bin" ]]; then
+    if [[ ":$PATH:" != *":$DEST_DIR:"* ]]; then
+        echo -e "${YELLOW}[!] Adding ${DEST_DIR} to shell PATH (~/.bashrc / ~/.zshrc)...${NC}"
+        for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+            if [[ -f "$rc" ]] && ! grep -q "$DEST_DIR" "$rc"; then
+                echo "export PATH=\"$DEST_DIR:\$PATH\"" >> "$rc"
+            fi
+        done
+        export PATH="$DEST_DIR:$PATH"
+    fi
+fi
+
+if [[ $? -eq 0 ]]; then
+    if [[ "$IS_NEW_INSTALL" == true ]]; then
+        echo -e "${GREEN}✔ Vencord & Updater successfully installed!${NC}"
+        echo -e "You can now run '${CYAN}vencord${NC}' to install/start Vencord, or '${CYAN}vencord-updater${NC}' to update it anytime."
+    else
+        echo -e "${GREEN}✔ Successfully updated ${INSTALLED_PATH}!${NC}"
+    fi
+    cleanup_exit 0
+else
+    echo -e "${RED}[ERROR] Installation/Update failed.${NC}"
+    cleanup_exit 1
+fi
